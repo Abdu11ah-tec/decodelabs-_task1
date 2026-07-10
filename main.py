@@ -1,160 +1,213 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Set a cohesive styling theme for business stakeholder presentations
-sns.set_theme(style="whitegrid")
-plt.rcParams["font.size"] = 12
-plt.rcParams["axes.labelsize"] = 14
-plt.rcParams["axes.titlesize"] = 16
+# Load Cleaned Dataset
+file_path = "Cleaned_Data_Analytics_Project(1).xlsx"
+df = pd.read_excel(file_path)
+
+print("="*60)
+print("DATASET INFORMATION")
+print("="*60)
+
+print(df.info())
+
+print("\nFirst 5 Rows")
+print(df.head())
+
+print("\nLast 5 Rows")
+print(df.tail())
 
 
-# 1. INPUT PHASE
-print("=" * 60)
-print("PHASE 1: INPUT - DIGITAL EVIDENCE AUDIT")
-print("=" * 60)
+print("\nDescriptive Statistics")
 
-df = pd.read_csv("netflix_titles.csv")
+stats = df.describe(include='all')
 
-print(f"Total Operational Records Analyzed : {df.shape[0]}")
-print(f"Total Structural Features Inspected: {df.shape[1]}\n")
+print(stats)
 
-missing_counts = df.isnull().sum()
-missing_percentages = (df.isnull().sum() / len(df)) * 100
+# Additional Statistics
 
-print("Missing Evidence Summary:")
-for col in df.columns:
-    if missing_counts[col] > 0:
-        print(
-            f" -> Feature '{col}': Missing {missing_counts[col]} records ({missing_percentages[col]:.2f}%)"
-        )
-print("-" * 60 + "\n")
+numeric = df.select_dtypes(include=np.number)
+
+statistics = pd.DataFrame({
+    "Count": numeric.count(),
+    "Mean": numeric.mean(),
+    "Median": numeric.median(),
+    "Mode": numeric.mode().iloc[0],
+    "Minimum": numeric.min(),
+    "Maximum": numeric.max(),
+    "Range": numeric.max()-numeric.min(),
+    "Variance": numeric.var(),
+    "Standard Deviation": numeric.std(),
+    "Skewness": numeric.skew(),
+    "Kurtosis": numeric.kurt(),
+    "Missing Values": numeric.isnull().sum()
+})
+
+correlation = numeric.corr()
+
+outlier_summary = []
+
+for col in numeric.columns:
+
+    Q1 = numeric[col].quantile(0.25)
+    Q3 = numeric[col].quantile(0.75)
+
+    IQR = Q3 - Q1
+
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
+
+    outliers = numeric[(numeric[col] < lower) |
+                       (numeric[col] > upper)]
+
+    outlier_summary.append({
+        "Column": col,
+        "Outliers": len(outliers),
+        "Lower Bound": lower,
+        "Upper Bound": upper
+    })
+
+outlier_df = pd.DataFrame(outlier_summary)
 
 
-# 2. PROCESS PHASE
+categorical = df.select_dtypes(include='object')
 
-df["country"] = df["country"].fillna("Unknown")
-df["cast"] = df["cast"].fillna("No Cast Listed")
-df["director"] = df["director"].fillna("Unknown")
+category_analysis = {}
 
-df = df.dropna(subset=["date_added", "rating", "duration"])
+for col in categorical.columns:
+    category_analysis[col] = df[col].value_counts()
+
+trend_data = pd.DataFrame()
+
+if len(numeric.columns) > 0:
+    trend_data = numeric.mean().sort_values(ascending=False)
 
 
-# 3. PROCESS PHASE: Descriptive Statistics & Center of Gravity Proofs
+insights = []
 
-print("=" * 60)
-print("PHASE 2: PROCESS - STATISTICAL PROOFS & PATTERNS")
-print("=" * 60)
+insights.append("Dataset contains {} rows.".format(len(df)))
+insights.append("Dataset contains {} columns.".format(len(df.columns)))
+insights.append("No missing values detected after Project 1 cleaning.")
 
-type_counts = df["type"].value_counts()
-type_shares = df["type"].value_counts(normalize=True) * 100
-print("Content Catalog Mix Split:")
-for category in type_counts.index:
-    print(
-        f" -> {category}: {type_counts[category]} titles ({type_shares[category]:.2f}%)"
+for col in numeric.columns:
+
+    insights.append(
+        f"{col} average value = {round(df[col].mean(),2)}"
     )
-print("-" * 60)
 
-print("Release Year Geometry (The Logic Skeleton):")
-five_num = df["release_year"].describe()
-print(f" -> Minimum (The Floor)   : {int(five_num['min'])}")
-print(f" -> Q1 (25th Percentile)  : {int(five_num['25%'])}")
-print(f" -> Median (50th % Center): {int(five_num['50%'])}")
-print(f" -> Q3 (75th Percentile)  : {int(five_num['75%'])}")
-print(f" -> Maximum (The Ceiling) : {int(five_num['max'])}")
-print("-" * 60)
-
-movies_df = df[df["type"] == "Movie"].copy()
-# Standardize string inputs like '90 min' into pure operational integers
-movies_df["duration_mins"] = (
-    movies_df["duration"].str.replace(" min", "", regex=False).astype(int)
-)
-
-mean_dur = movies_df["duration_mins"].mean()
-median_dur = movies_df["duration_mins"].median()
-
-print("Mathematical Symmetry Check (Movie Run-Times):")
-print(f" -> Calculated Mean Duration  : {mean_dur:.2f} minutes")
-print(f" -> Calculated Median Duration: {median_dur:.2f} minutes")
-
-if abs(mean_dur - median_dur) < 3:
-    print(
-        " -> Business Verdict: Distribution is Symmetrical. Mean is a valid center of gravity."
+    insights.append(
+        f"{col} maximum value = {round(df[col].max(),2)}"
     )
-else:
-    print(
-        " -> Business Verdict: Distribution is Skewed. Fall back to Median for KPI reporting."
+
+    insights.append(
+        f"{col} minimum value = {round(df[col].min(),2)}"
     )
-print("=" * 60 + "\n")
 
-
-# 4. OUTPUT PHASE
-
-print("Generating analytical plots...")
-
-fig, axes = plt.subplots(1, 2, figsize=(18, 7))
-
-sns.histplot(
-    data=df,
-    x="release_year",
-    hue="type",
-    multiple="stack",
-    kde=True,
-    bins=40,
-    ax=axes[0],
-    palette="dark",
-)
-axes[0].set_xlim(1970, 2022)  # Cut off vintage temporal anomalies for cluster clarity
-axes[0].set_title(
-    "The Geometry of Distribution:\nContent Release Volume Density", pad=15
-)
-axes[0].set_xlabel("Release Year")
-axes[0].set_ylabel("Total Catalog Additions")
-
-exploded_countries = (
-    df[df["country"] != "Unknown"]["country"]
-    .str.split(", ")
-    .explode()
-    .value_counts()
-    .head(10)
+writer = pd.ExcelWriter(
+    "Project2_Completed_EDA.xlsx",
+    engine="openpyxl"
 )
 
-sns.barplot(
-    x=exploded_countries.values,
-    y=exploded_countries.index,
-    ax=axes[1],
-    palette="viridis",
-)
-axes[1].set_title("Top 10 Global Production Repositories\n(Exploded Country Records)", pad=15)
-axes[1].set_xlabel("Total Unique Titles Identified")
-axes[1].set_ylabel("Country Origin")
+# Original Clean Data
+df.to_excel(writer,
+            sheet_name="Cleaned_Data",
+            index=False)
+
+# Statistics
+statistics.to_excel(writer,
+                    sheet_name="Statistics")
+
+# Correlation
+correlation.to_excel(writer,
+                     sheet_name="Correlation")
+
+# Outliers
+outlier_df.to_excel(writer,
+                    sheet_name="Outlier_Analysis",
+                    index=False)
+
+# Trend
+trend_data.to_frame(
+    name="Average"
+).to_excel(writer,
+           sheet_name="Trend_Analysis")
+
+# Category Analysis
+
+for col in categorical.columns:
+
+    category_analysis[col].to_frame(
+        name="Count"
+    ).to_excel(writer,
+               sheet_name=f"{col[:25]}")
+
+# Insights
+insight_df = pd.DataFrame({
+    "Key Observations": insights
+})
+
+insight_df.to_excel(writer,
+                    sheet_name="Business_Insights",
+                    index=False)
+
+writer.close()
+
+print("\nExcel Report Saved Successfully")
+
+
+sns.set_style("whitegrid")
+
+# Histograms
+
+for col in numeric.columns:
+
+    plt.figure(figsize=(8,5))
+
+    sns.histplot(df[col],
+                 kde=True)
+
+    plt.title(f"Distribution of {col}")
+
+    plt.tight_layout()
+
+    plt.savefig(f"{col}_Histogram.png")
+
+    plt.close()
+
+# Boxplots
+
+for col in numeric.columns:
+
+    plt.figure(figsize=(8,3))
+
+    sns.boxplot(x=df[col])
+
+    plt.title(f"Outliers in {col}")
+
+    plt.tight_layout()
+
+    plt.savefig(f"{col}_Boxplot.png")
+
+    plt.close()
+
+# Correlation Heatmap
+
+plt.figure(figsize=(10,8))
+
+sns.heatmap(correlation,
+            annot=True,
+            cmap="coolwarm")
+
+plt.title("Correlation Heatmap")
 
 plt.tight_layout()
-plt.show()
 
-plt.figure(figsize=(10, 5))
-sns.histplot(
-    data=movies_df, x="duration_mins", kde=True, color="crimson", bins=30
-)
-plt.axvline(
-    mean_dur,
-    color="blue",
-    linestyle="--",
-    linewidth=2,
-    label=f"Mean: {mean_dur:.1f}m",
-)
-plt.axvline(
-    median_dur,
-    color="yellow",
-    linestyle="-",
-    linewidth=2,
-    label=f"Median: {median_dur:.1f}m",
-)
-plt.title(
-    "Movie Runtime Configuration: Verifying Bell-Curve Symmetry Check", pad=15
-)
-plt.xlabel("Duration in Minutes")
-plt.ylabel("Movie Counts")
-plt.legend(facecolor="white", frameon=True)
-plt.show()
+plt.savefig("Correlation_Heatmap.png")
+
+plt.close()
+
+print("\nCharts Saved Successfully")
+
+print("\nPROJECT 2 COMPLETED SUCCESSFULLY")
